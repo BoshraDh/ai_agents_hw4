@@ -22,13 +22,15 @@ MINIMAL_GRAPH = {
 
 def _make_response(text="ok"):
     usage = MagicMock()
-    usage.input_tokens = 10
-    usage.output_tokens = 5
-    content = MagicMock()
-    content.text = text
+    usage.prompt_tokens = 10
+    usage.completion_tokens = 5
+    message = MagicMock()
+    message.content = text
+    choice = MagicMock()
+    choice.message = message
     resp = MagicMock()
     resp.usage = usage
-    resp.content = [content]
+    resp.choices = [choice]
     return resp
 
 
@@ -58,8 +60,8 @@ def workspace(tmp_config):
 
 
 def test_graph_reader_node(workspace):
-    with patch("hw4.shared.gatekeeper.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = _make_response("module list")
+    with patch("hw4.shared.gatekeeper.openai.OpenAI") as MockClient:
+        MockClient.return_value.chat.completions.create.return_value = _make_response("module list")
         from hw4.agent.nodes import AgentState, graph_reader_node
         state: AgentState = {
             "graph_summary": "", "obsidian_context": "", "target_code": "",
@@ -72,8 +74,8 @@ def test_graph_reader_node(workspace):
 
 
 def test_obsidian_reader_node(workspace):
-    with patch("hw4.shared.gatekeeper.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = _make_response("obsidian result")
+    with patch("hw4.shared.gatekeeper.openai.OpenAI") as MockClient:
+        MockClient.return_value.chat.completions.create.return_value = _make_response("obsidian result")
         from hw4.agent.nodes import AgentState, obsidian_reader_node
         state: AgentState = {
             "graph_summary": "summary", "obsidian_context": "", "target_code": "",
@@ -84,8 +86,8 @@ def test_obsidian_reader_node(workspace):
 
 
 def test_targeted_code_reader_node(workspace):
-    with patch("hw4.shared.gatekeeper.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = _make_response("analysis result")
+    with patch("hw4.shared.gatekeeper.openai.OpenAI") as MockClient:
+        MockClient.return_value.chat.completions.create.return_value = _make_response("analysis result")
         from hw4.agent.nodes import AgentState, targeted_code_reader_node
         state: AgentState = {
             "graph_summary": "", "obsidian_context": "context", "target_code": "",
@@ -97,8 +99,8 @@ def test_targeted_code_reader_node(workspace):
 
 
 def test_bug_identifier_node(workspace):
-    with patch("hw4.shared.gatekeeper.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = _make_response("bug found")
+    with patch("hw4.shared.gatekeeper.openai.OpenAI") as MockClient:
+        MockClient.return_value.chat.completions.create.return_value = _make_response("bug found")
         from hw4.agent.nodes import AgentState, bug_identifier_node
         state: AgentState = {
             "graph_summary": "", "obsidian_context": "analysis", "target_code": "",
@@ -109,8 +111,8 @@ def test_bug_identifier_node(workspace):
 
 
 def test_fixer_node(workspace):
-    with patch("hw4.shared.gatekeeper.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = _make_response("fixed code")
+    with patch("hw4.shared.gatekeeper.openai.OpenAI") as MockClient:
+        MockClient.return_value.chat.completions.create.return_value = _make_response("fixed code")
         from hw4.agent.nodes import AgentState, fixer_node
         state: AgentState = {
             "graph_summary": "", "obsidian_context": "", "target_code": "original",

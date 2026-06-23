@@ -52,19 +52,21 @@ def full_workspace(tmp_config):
 
 def _make_response(text="ok"):
     usage = MagicMock()
-    usage.input_tokens = 10
-    usage.output_tokens = 5
-    content = MagicMock()
-    content.text = text
+    usage.prompt_tokens = 10
+    usage.completion_tokens = 5
+    message = MagicMock()
+    message.content = text
+    choice = MagicMock()
+    choice.message = message
     resp = MagicMock()
     resp.usage = usage
-    resp.content = [content]
+    resp.choices = [choice]
     return resp
 
 
 def test_run_graph_agent(full_workspace):
-    with patch("hw4.shared.gatekeeper.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = _make_response()
+    with patch("hw4.shared.gatekeeper.openai.OpenAI") as MockClient:
+        MockClient.return_value.chat.completions.create.return_value = _make_response()
         from hw4.sdk.sdk import run_graph_agent
         result = run_graph_agent()
     assert "state" in result
@@ -72,8 +74,8 @@ def test_run_graph_agent(full_workspace):
 
 
 def test_run_baseline_agent(full_workspace):
-    with patch("hw4.shared.gatekeeper.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = _make_response("bug found")
+    with patch("hw4.shared.gatekeeper.openai.OpenAI") as MockClient:
+        MockClient.return_value.chat.completions.create.return_value = _make_response("bug found")
         from hw4.sdk.sdk import run_baseline_agent
         result = run_baseline_agent()
     assert "result" in result
@@ -82,8 +84,8 @@ def test_run_baseline_agent(full_workspace):
 
 def test_run_comparison_writes_report(full_workspace):
     report_path = full_workspace / "reports" / "comparison.md"
-    with patch("hw4.shared.gatekeeper.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = _make_response()
+    with patch("hw4.shared.gatekeeper.openai.OpenAI") as MockClient:
+        MockClient.return_value.chat.completions.create.return_value = _make_response()
         from hw4.sdk.sdk import run_comparison
         text = run_comparison(str(report_path))
     assert report_path.exists()

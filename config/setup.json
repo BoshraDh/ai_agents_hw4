@@ -18,13 +18,13 @@
     "skip_if_exists": true
   },
   "agent": {
-    "model": "claude-haiku-4-5-20251001",
+    "model": "gpt-4o-mini",
     "max_tokens_per_node": 1000,
     "max_files_per_node": 3,
     "top_k_hot_nodes": 10
   },
   "baseline": {
-    "model": "claude-haiku-4-5-20251001",
+    "model": "gpt-4o-mini",
     "max_tokens": 4000
   }
 }

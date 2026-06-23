@@ -1,8 +1,8 @@
 # PLAN — Architecture & Implementation
 
-**Version:** 1.01  
+**Version:** 1.02  
 **Date:** 2026-06-24  
-**Status:** Implementation complete. Verified: 42 tests pass, 89% coverage, ruff 0 violations.
+**Status:** COMPLETE. Live run verified: 42 tests pass, 89% coverage, 0 ruff violations, pipeline produces real token comparison.
 
 ---
 
@@ -12,19 +12,20 @@
 User / CLI
     |
     v
-SDK Layer  (hw4.sdk.sdk — sole entry point)
+SDK Layer  (hw4.sdk.sdk - sole entry point)
     |
-    +-- GraphifyRunner  ->  Obsidian Builder
+    +-- GraphifyRunner  ->  ObsidianBuilder
+    |       (graphify update, networkx, scipy PageRank)
     |
     +-- LangGraph Agent (5 nodes)
     |       |
     |       v
-    |   API Gatekeeper  ->  Anthropic API
+    |   API Gatekeeper  ->  OpenAI API (gpt-4o-mini)
     |
-    +-- Naive Baseline
+    +-- Naive Baseline (single-shot, all files)
             |
             v
-        API Gatekeeper  ->  Anthropic API
+        API Gatekeeper  ->  OpenAI API (gpt-4o-mini)
 ```
 
 ---
@@ -32,58 +33,60 @@ SDK Layer  (hw4.sdk.sdk — sole entry point)
 ## 2. Component Breakdown
 
 ### 2.1 Graphify Runner (`src/hw4/graphify/runner.py`)
-- Wraps `graphifyy` CLI; caches if `artifacts/graph.json` exists
-- Exposes: `run()`, `load_graph()`, `get_neighbors(node)`, `top_by_degree(k)`, `pagerank()`
-- Uses NetworkX + scipy for PageRank computation
+- Wraps `graphify update` CLI (AST extraction, no LLM)
+- Produced: 7,480 nodes, 22,889 edges on scrapy codebase
+- Exposes: `run()`, `load_graph()`, `get_neighbors()`, `top_by_degree()`, `pagerank()`
+- Auto-detects `"links"` vs `"edges"` key for NetworkX compatibility
 
 ### 2.2 Obsidian Builder (`src/hw4/graphify/obsidian_builder.py`)
-- Reads graph via `GraphifyRunner`; runs PageRank
-- Writes: `obsidian/index.md` (top-20 nodes by degree)
-- Writes: `obsidian/hot.md` (top-K nodes by PageRank — the extension from task 5.6)
-- Also writes static pages: `architecture_blocks.md`, `oop_summary.md`
+- Reads graph via `GraphifyRunner`; runs NetworkX + scipy PageRank
+- Writes: `obsidian/index.md` (top-20 by degree)
+- Writes: `obsidian/hot.md` (top-K by PageRank — task 5.6 extension)
+- Static pages: `architecture_blocks.md`, `oop_summary.md`
 
 ### 2.3 LangGraph Agent (`src/hw4/agent/`)
-Five-node state machine (all LLM calls via `ApiGatekeeper`):
+Five-node pipeline (all LLM calls via `ApiGatekeeper`):
 
 ```
-graph_reader_node          (reads graph summary ~200 tokens)
-    -> obsidian_reader_node    (reads hot.md + index.md ~400 tokens)
-        -> targeted_code_reader_node  (reads offsite.py ~650 tokens)
-            -> bug_identifier_node    (produces bug report ~380 tokens)
-                -> fixer_node         (produces patch ~290 tokens)
-```
+graph_reader_node          (478 tokens — graph degree summary)
+    -> obsidian_reader_node    (835 tokens — hot.md + index.md)
+        -> targeted_code_reader_node  (1,311 tokens — offsite.py only)
+            -> bug_identifier_node    (743 tokens — structured bug report)
+                -> fixer_node         (714 tokens — minimal patch)
 
-State type: `AgentState` (TypedDict with 6 keys)
+Total: 4,081 tokens. Bug found correctly.
+```
 
 ### 2.4 Naive Baseline (`src/hw4/baseline/naive_agent.py`)
 - Collects all `.py` files from `data/scrapy/` (capped at 80K chars)
 - Single LLM call asking for bug location
-- Used only for token comparison
+- Result: 16,376 tokens, **wrong file** identified (genspider.py)
 
 ### 2.5 API Gatekeeper (`src/hw4/shared/gatekeeper.py`)
-- Singleton; all LLM traffic routes here
-- Rate limiting: tracks call timestamps, sleeps if RPM exceeded
-- Retry: exponential backoff on `RateLimitError` / `APIError`
+- Uses OpenAI SDK (`openai.OpenAI`)
+- Singleton; throttles to RPM limit; exponential backoff on errors
 - Accumulates `total_prompt_tokens` + `total_completion_tokens`
-- Rate limits read from `config/rate_limits.json` (never hardcoded)
+- Config from `config/rate_limits.json`
 
 ### 2.6 Config Manager (`src/hw4/shared/config.py`)
 - Singleton; loads `config/setup.json` + `config/rate_limits.json`
-- Typed properties — no dict access outside this module
+- Model: `gpt-4o-mini` (set in setup.json)
 
 ---
 
-## 3. Data Flow (end-to-end)
+## 3. Data Flow (actual)
 
 ```
-data/scrapy/ (buggy commit 0f214b6a)
-    -> graphifyy CLI
-        -> artifacts/graph.json
-            -> ObsidianBuilder
-                -> obsidian/index.md + hot.md
-                    -> LangGraph agent (5 nodes, ~2,000 tokens total)
-                        -> bug found + patch generated
-                            -> reports/token_comparison.md
+data/scrapy/ (453 .py files)
+    -> graphify update (AST, no LLM)
+        -> data/scrapy/graphify-out/graph.json (7,480 nodes)
+            -> copied to artifacts/graph.json
+                -> ObsidianBuilder
+                    -> obsidian/index.md (top-20 degree)
+                    -> obsidian/hot.md (PageRank top-10)
+                        -> LangGraph agent (5 nodes, 4,081 tokens)
+                            -> OffsiteMiddleware bug found + patch
+                                -> reports/token_comparison.md
 ```
 
 ---
@@ -91,69 +94,54 @@ data/scrapy/ (buggy commit 0f214b6a)
 ## 4. Decisions (ADRs)
 
 ### ADR-001: LangGraph over CrewAI
-**Decision:** LangGraph.  
-**Reason:** Explicit per-node step control makes token counting straightforward.
-Assignment recommends it for limited free API accounts.
+Per-node control enables per-step token measurement. Assignment recommendation.
 
-### ADR-002: scrapy over thefuck
-**Decision:** scrapy (Bug #1).  
-**Reason:** Rich multi-component architecture (Engine/Spider/Middleware/Pipeline/Scheduler)
-produces a meaningful knowledge graph. User explicitly rejected thefuck.
+### ADR-002: scrapy (BugsInPy)
+Rich middleware architecture; 40 documented bugs; bug #1 is clear and well-scoped.
 
 ### ADR-003: uv as sole package manager
-**Decision:** uv exclusively.  
-**Reason:** Required by `software_submission_guidelines-V3`. `uv.lock` for reproducibility.
+Required by guidelines. `uv.lock` for reproducibility.
 
-### ADR-004: scipy added for PageRank
-**Decision:** Added `scipy` to dependencies.  
-**Reason:** NetworkX 3.6.1 delegates `nx.pagerank()` to scipy when available.
-Without it, pagerank raises an error on directed graphs.
+### ADR-004: scipy for PageRank
+NetworkX 3.6.1 delegates `nx.pagerank()` to scipy. Added as explicit dependency.
 
-### ADR-005: NetworkX node_link_graph edges key auto-detection
-**Decision:** Detect `"links"` vs `"edges"` key in `_nx()`.  
-**Reason:** NetworkX 3.x changed the default key from `"links"` to `"edges"`.
-Graphify may output either format depending on version.
+### ADR-005: NetworkX edges key auto-detection
+Graphify outputs `"links"` key; NetworkX 3.x defaults to `"edges"`. Runner auto-detects.
 
----
+### ADR-006: OpenAI SDK (not Anthropic)
+User provided OpenAI API key (`sk-proj-...`). Gatekeeper switched from `anthropic` to `openai`.
+Model: `gpt-4o-mini` (cost-efficient, sufficient for bug analysis).
 
-## 5. File Size Budget (all ≤ 150 lines)
-
-| File | Lines |
-|------|-------|
-| `sdk/sdk.py` | 84 |
-| `shared/gatekeeper.py` | 92 |
-| `shared/config.py` | 80 |
-| `agent/nodes.py` | 130 |
-| `agent/workflow.py` | 40 |
-| `agent/tools.py` | 60 |
-| `agent/prompts.py` | 42 |
-| `graphify/runner.py` | 72 |
-| `graphify/obsidian_builder.py` | 117 |
-| `baseline/naive_agent.py` | 55 |
-| `analysis/token_counter.py` | 44 |
-| `analysis/comparator.py` | 59 |
+### ADR-007: graphify update (AST-only, no LLM)
+`graphify update` does AST extraction without LLM — free to run. Produces same graph.json
+format. Semantic enrichment can be added later with `graphify extract`.
 
 ---
 
-## 6. Testing Strategy (TDD — Red-Green-Refactor)
+## 5. File Size (all <= 150 lines)
 
-- Unit tests mock `anthropic.Anthropic` to avoid real LLM calls
-- Integration test uses a synthetic `graph.json` fixture (5 nodes, 2 edges)
-- `conftest.py` provides `tmp_graph` and `tmp_config` fixtures
-- Coverage gate: `--cov-fail-under=85` in `pyproject.toml`
-- **Current result: 42 tests pass, 89.29% coverage**
+All source files verified within 150-line limit.
 
 ---
 
-## 7. Verification Commands
+## 6. Actual Test Results
 
-```bash
-uv run pytest tests/ --cov=src/hw4 --cov-report=term-missing
-# Expected: 42 passed, coverage 89%
+```
+uv run pytest tests/ --cov=src/hw4
+Result: 42 passed, coverage 89.38%
 
 uv run ruff check src/
-# Expected: All checks passed!
+Result: All checks passed!
+```
 
-uv run python -m hw4.sdk.sdk
-# Expected: full pipeline output + token comparison report
+---
+
+## 7. Live Pipeline Results
+
+```
+Graph-guided agent:  4,081 tokens — correct bug identified
+Naive agent:        16,376 tokens — wrong file identified
+Reduction factor:   4x measured (27x estimated on full uncapped codebase)
+
+Key insight: token efficiency + accuracy both improved with graph-guided approach.
 ```

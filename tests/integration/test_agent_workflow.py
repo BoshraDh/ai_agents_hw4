@@ -56,19 +56,21 @@ def setup_workspace(tmp_config):
 
 def _make_response(text="fixed"):
     usage = MagicMock()
-    usage.input_tokens = 10
-    usage.output_tokens = 5
-    content = MagicMock()
-    content.text = text
+    usage.prompt_tokens = 10
+    usage.completion_tokens = 5
+    message = MagicMock()
+    message.content = text
+    choice = MagicMock()
+    choice.message = message
     resp = MagicMock()
     resp.usage = usage
-    resp.content = [content]
+    resp.choices = [choice]
     return resp
 
 
 def test_full_workflow_completes(setup_workspace, monkeypatch):
-    with patch("hw4.shared.gatekeeper.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = _make_response()
+    with patch("hw4.shared.gatekeeper.openai.OpenAI") as MockClient:
+        MockClient.return_value.chat.completions.create.return_value = _make_response()
         from hw4.agent.workflow import run_agent_workflow
         state = run_agent_workflow()
     assert "patch" in state

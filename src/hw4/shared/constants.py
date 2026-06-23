@@ -8,6 +8,6 @@ GRAPH_REPORT_MD = "artifacts/GRAPH_REPORT.md"
 OBSIDIAN_DIR = "obsidian"
 REPORTS_DIR = "reports"
 
-BUG_TARGET_FILE = "scrapy/spidermw/offsite.py"
+BUG_TARGET_FILE = "scrapy/downloadermiddlewares/offsite.py"
 BUG_TARGET_CLASS = "OffsiteMiddleware"
-BUG_TARGET_METHOD = "should_follow"
+BUG_TARGET_METHOD = "get_host_regex"

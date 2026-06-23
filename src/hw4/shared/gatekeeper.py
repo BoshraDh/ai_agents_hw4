@@ -1,24 +1,23 @@
-"""API Gatekeeper — all LLM calls pass through here."""
+"""API Gatekeeper — all LLM calls pass through here. Uses OpenAI SDK."""
 
 from __future__ import annotations
 
 import os
 import time
 from collections.abc import Sequence
-from typing import Any
 
-import anthropic
+import openai
 
 from hw4.shared.config import get_config
 
 
 class ApiGatekeeper:
-    """Centralized manager for Anthropic API calls with rate limiting & retry."""
+    """Centralized manager for OpenAI API calls with rate limiting & retry."""
 
     def __init__(self) -> None:
         cfg = get_config()
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        self._client = anthropic.Anthropic(api_key=api_key)
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        self._client = openai.OpenAI(api_key=api_key)
         self._max_retries = cfg.max_retries
         self._base_delay = cfg.retry_base_delay
         self._max_delay = cfg.retry_max_delay
@@ -45,26 +44,30 @@ class ApiGatekeeper:
         """Send a chat request and return the text response."""
         delay = self._base_delay
         last_exc: Exception | None = None
+        all_messages: list[dict[str, str]] = []
+        if system:
+            all_messages.append({"role": "system", "content": system})
+        all_messages.extend(list(messages))
+
         for attempt in range(self._max_retries + 1):
             try:
                 self._throttle()
-                kwargs: dict[str, Any] = {
-                    "model": model,
-                    "max_tokens": max_tokens,
-                    "messages": list(messages),
-                }
-                if system:
-                    kwargs["system"] = system
-                response = self._client.messages.create(**kwargs)
+                response = self._client.chat.completions.create(
+                    model=model,
+                    messages=all_messages,  # type: ignore[arg-type]
+                    max_tokens=max_tokens,
+                )
                 self._call_timestamps.append(time.monotonic())
-                self.total_prompt_tokens += response.usage.input_tokens
-                self.total_completion_tokens += response.usage.output_tokens
-                return response.content[0].text
-            except anthropic.RateLimitError as exc:
+                usage = response.usage
+                if usage:
+                    self.total_prompt_tokens += usage.prompt_tokens
+                    self.total_completion_tokens += usage.completion_tokens
+                return response.choices[0].message.content or ""
+            except openai.RateLimitError as exc:
                 last_exc = exc
                 time.sleep(min(delay, self._max_delay))
                 delay *= 2
-            except anthropic.APIError as exc:
+            except openai.APIError as exc:
                 last_exc = exc
                 if attempt == self._max_retries:
                     break

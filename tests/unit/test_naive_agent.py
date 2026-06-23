@@ -13,13 +13,15 @@ import hw4.shared.gatekeeper as gk_mod
 
 def _make_response(text="found bug", input_tokens=1000, output_tokens=200):
     usage = MagicMock()
-    usage.input_tokens = input_tokens
-    usage.output_tokens = output_tokens
-    content = MagicMock()
-    content.text = text
+    usage.prompt_tokens = input_tokens
+    usage.completion_tokens = output_tokens
+    message = MagicMock()
+    message.content = text
+    choice = MagicMock()
+    choice.message = message
     resp = MagicMock()
     resp.usage = usage
-    resp.content = [content]
+    resp.choices = [choice]
     return resp
 
 
@@ -43,8 +45,8 @@ def scrapy_stub(tmp_config):
 
 
 def test_run_naive_returns_dict(scrapy_stub):
-    with patch("hw4.shared.gatekeeper.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = _make_response(
+    with patch("hw4.shared.gatekeeper.openai.OpenAI") as MockClient:
+        MockClient.return_value.chat.completions.create.return_value = _make_response(
             "OffsiteMiddleware bug found", input_tokens=5000, output_tokens=300
         )
         from hw4.baseline.naive_agent import run_naive
@@ -55,8 +57,8 @@ def test_run_naive_returns_dict(scrapy_stub):
 
 
 def test_run_naive_tracks_tokens(scrapy_stub):
-    with patch("hw4.shared.gatekeeper.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = _make_response(
+    with patch("hw4.shared.gatekeeper.openai.OpenAI") as MockClient:
+        MockClient.return_value.chat.completions.create.return_value = _make_response(
             input_tokens=8000, output_tokens=400
         )
         from hw4.baseline.naive_agent import run_naive

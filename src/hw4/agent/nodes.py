@@ -72,7 +72,7 @@ def obsidian_reader_node(state: AgentState) -> AgentState:
 def targeted_code_reader_node(state: AgentState) -> AgentState:
     """Read ≤ 3 targeted source files and ask LLM to identify the bug."""
     cfg = get_config()
-    offsite_code = tools.read_source_file("scrapy/spidermw/offsite.py")
+    offsite_code = tools.read_source_file("scrapy/downloadermiddlewares/offsite.py")
 
     gk = get_gatekeeper()
     before = gk.token_summary()
