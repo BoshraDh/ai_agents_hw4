@@ -53,7 +53,7 @@ def workspace(tmp_config):
     obsidian.mkdir(exist_ok=True)
     (obsidian / "index.md").write_text("# Index")
     (obsidian / "hot.md").write_text("# Hot")
-    scrapy = root / "scrapy" / "scrapy" / "spidermw"
+    scrapy = root / "scrapy" / "scrapy" / "downloadermiddlewares"
     scrapy.mkdir(parents=True, exist_ok=True)
     (scrapy / "offsite.py").write_text("class OffsiteMiddleware:\n    def get_host_regex(self): pass\n")
     return root
