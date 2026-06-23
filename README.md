@@ -8,7 +8,7 @@
 
 Uses [Graphify](https://pypi.org/project/graphifyy/) to convert the scrapy codebase into a
 knowledge graph, builds an Obsidian vault from the graph, then runs a LangGraph agent that
-locates and fixes a real bug (**scrapy-1**) in ≈60× fewer tokens than reading all source files.
+locates and fixes a real bug (**scrapy-1**) in significantly fewer tokens than reading all source files.
 
 ---
 
@@ -16,7 +16,7 @@ locates and fixes a real bug (**scrapy-1**) in ≈60× fewer tokens than reading
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) (`pip install uv`)
-- An Anthropic API key
+- An OpenAI API key (`sk-proj-...`)
 
 ---
 
@@ -25,7 +25,7 @@ locates and fixes a real bug (**scrapy-1**) in ≈60× fewer tokens than reading
 ```bash
 git clone https://github.com/BoshraDh/ai_agents_hw4.git
 cd ai_agents_hw4
-cp .env-example .env        # add your ANTHROPIC_API_KEY
+cp .env-example .env        # add your OPENAI_API_KEY
 uv sync                     # install all dependencies
 
 # Clone scrapy at the buggy commit
@@ -33,6 +33,11 @@ git clone https://github.com/scrapy/scrapy data/scrapy
 cd data/scrapy
 git checkout 0f214b6a3a9e26e32e5b64a2a5e22c8dc28fce0e
 cd ../..
+```
+
+`.env` format:
+```
+OPENAI_API_KEY=sk-proj-...
 ```
 
 ---
@@ -84,11 +89,13 @@ data/scrapy/    scrapy at buggy commit (git-ignored)
 
 ## Key Results
 
-| Method | Total tokens | Files read | Accuracy |
+Live run results (model: `gpt-4o-mini`):
+
+| Method | Total tokens | Files read | Bug found |
 |--------|-------------|-----------|---------|
-| Graph-guided | ~1,710 | 1 | ✓ |
-| Naive | ~107,750 | 142 | ✓ |
-| **Reduction** | **63×** | | |
+| Graph-guided | ~4,500 | 1 | ✓ |
+| Naive | ~16,400 | all .py files | ✓ |
+| **Reduction** | **~3.6×** | | |
 
 ---
 
@@ -97,6 +104,7 @@ data/scrapy/    scrapy at buggy commit (git-ignored)
 **scrapy-1** — `OffsiteMiddleware.get_host_regex` crashes with `TypeError` when
 `spider.allowed_domains` contains `None`.
 
-**Fix:** Added `filter(None, allowed_domains)` guard (1 line).
+**Fix:** Added a `None`-guard before building the regex (1 line).
 
 See `obsidian/fix_before_after.md` for before/after.
+See `reports/bug_analysis.md` for full root cause analysis.
