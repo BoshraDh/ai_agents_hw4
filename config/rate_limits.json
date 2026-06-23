@@ -1,0 +1,13 @@
+{
+  "anthropic": {
+    "requests_per_minute": 10,
+    "tokens_per_minute": 40000,
+    "max_retries": 3,
+    "retry_base_delay_seconds": 2.0,
+    "retry_max_delay_seconds": 30.0
+  },
+  "queue": {
+    "max_concurrent": 1,
+    "timeout_seconds": 60
+  }
+}

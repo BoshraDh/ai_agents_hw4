@@ -1,0 +1,30 @@
+{
+  "project": {
+    "name": "hw4-graphify-debugger",
+    "version": "1.00",
+    "scrapy_bug_id": "scrapy-1",
+    "scrapy_buggy_commit": "0f214b6a3a9e26e32e5b64a2a5e22c8dc28fce0e"
+  },
+  "paths": {
+    "scrapy_source": "data/scrapy",
+    "artifacts_dir": "artifacts",
+    "obsidian_dir": "obsidian",
+    "reports_dir": "reports"
+  },
+  "graphify": {
+    "tool": "graphifyy",
+    "graph_json": "artifacts/graph.json",
+    "report_md": "artifacts/GRAPH_REPORT.md",
+    "skip_if_exists": true
+  },
+  "agent": {
+    "model": "claude-haiku-4-5-20251001",
+    "max_tokens_per_node": 1000,
+    "max_files_per_node": 3,
+    "top_k_hot_nodes": 10
+  },
+  "baseline": {
+    "model": "claude-haiku-4-5-20251001",
+    "max_tokens": 4000
+  }
+}
